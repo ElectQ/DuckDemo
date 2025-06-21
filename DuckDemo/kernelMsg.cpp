@@ -15,7 +15,8 @@ namespace KernelMsg {
 		PAGED_CODE();
 		bool successInsert = false;
 		_Ring3MsgQueue* Item = nullptr;
-		ExAcquireResourceExclusiveLite(&queueLock, true);
+		KeEnterCriticalRegion(); //进入临界区 禁用APC调用资源保证锁的稳定性
+		ExAcquireResourceExclusiveLite(&queueLock, true);  //获取当前进程资源
 
 		do {
 			if (msgBuffer == nullptr || msgSize == 0 || isDriverUninstall) {
@@ -59,7 +60,8 @@ namespace KernelMsg {
 				Item = nullptr;
 			}
 		}
-		ExReleaseResourceLite(&queueLock);
+		ExReleaseResourceLite(&queueLock);  //释放这个锁
+		KeLeaveCriticalRegion(); //离开临界区 重新允许APC调用资源
 	}
 
 	auto FreeMsg(_Ring3MsgQueue* msg) -> void {
@@ -71,15 +73,18 @@ namespace KernelMsg {
 		}
 		ExFreePoolWithTag(msg, Tools::poolTag);
 	}
+
 	auto GetMsgFromQueue() -> _Ring3MsgQueue* {
 		if (msgQueueLength == 0) {
 			return nullptr;
 		}
+		KeEnterCriticalRegion();
 		ExAcquireResourceExclusiveLite(&queueLock, true);
 		PLIST_ENTRY entry = RemoveHeadList(msgQueue);
 		_Ring3MsgQueue* node = CONTAINING_RECORD(entry, _Ring3MsgQueue, ListEntry);
 		msgQueueLength--;
 		ExReleaseResourceLite(&queueLock);
+		KeLeaveCriticalRegion();
 
 		return node;
 	}
@@ -94,8 +99,13 @@ namespace KernelMsg {
 		HANDLE handle = reinterpret_cast<HANDLE>(ctx);
 		_Ring3MsgQueue* msgBuffer = nullptr;
 		do {
+			msgBuffer = nullptr;
 
 			if (isDriverUninstall || Minifilter::filterHandle == nullptr) {
+				if (msgBuffer != nullptr) { // 确保在退出前释放当前消息
+					FreeMsg(msgBuffer);
+					msgBuffer = nullptr;
+				}
 				break;
 			}
 			if (Minifilter::ClientHandle == nullptr) {
@@ -107,17 +117,23 @@ namespace KernelMsg {
 				Sleep(100);
 				continue;
 			}
+
+			if (isDriverUninstall || Minifilter::filterHandle == nullptr || Minifilter::ClientHandle == nullptr) {
+				FreeMsg(msgBuffer); // 如果要退出，释放消息
+				msgBuffer = nullptr;
+				break; // 立即退出
+			}
+
 			FltSendMessage(Minifilter::filterHandle,
 				&Minifilter::ClientHandle,
 				msgBuffer->buffer,
-				msgBuffer->bufferSize, NULL, NULL, NULL);
+				msgBuffer->bufferSize, NULL, NULL, &KernelMsg::MessageTimeout);
 			FreeMsg(msgBuffer);
 			Sleep(100);
 
 		} while (true);
-		if (msgBuffer) {
-			FreeMsg(msgBuffer);
-		}
+		FreeMsg(msgBuffer);
+		msgBuffer = nullptr; // 及时清空，避免在下次循环开始前错误引用
 		DebugPrint("[%s] Server thread exit! \n", __func__);
 	}
 
@@ -142,9 +158,7 @@ namespace KernelMsg {
 		InitializeListHead(msgQueue);
 		bool threadSuccesInit = false;
 		do {
-			auto ntStatus = PsCreateSystemThread(
-				&ServerThreadHandle, THREAD_ALL_ACCESS, NULL,
-				NtCurrentProcess(), NULL, serverThread, nullptr);
+			auto ntStatus = PsCreateSystemThread(&ServerThreadHandle, THREAD_ALL_ACCESS, NULL,NtCurrentProcess(), NULL, serverThread, nullptr);
 			if (NT_SUCCESS(ntStatus) == false) {
 				break;
 			}
@@ -156,38 +170,65 @@ namespace KernelMsg {
 	}
 
 	auto Uninstall() -> void {
-		isDriverUninstall = true;
-		DebugPrint("[%s] CleanUpQueue Length: %d \n", __func__, msgQueueLength);
+		DebugPrint("[KernelMsg] Uninstall: Entering.\n"); // 
+		isDriverUninstall = true; // 放置在最前面，尽快通知其他线程
+		DebugPrint("[KernelMsg] Uninstall: isDriverUninstall set to true. CleanUpQueue Length: %d\n", msgQueueLength); // 改进
+
 		if (LockInited == false) {
+			DebugPrint("[KernelMsg] Uninstall: Lock not initialized, exiting.\n"); // 
 			return;
 		}
-		PVOID threadObject;
+
+		PVOID threadObject = nullptr; // 初始化为 nullptr
 		if (ServerThreadHandle != nullptr) {
-			if (NT_SUCCESS(ObReferenceObjectByHandle(
-				ServerThreadHandle, THREAD_ALL_ACCESS, NULL, KernelMode,
-				&threadObject, NULL))) {
-				KeWaitForSingleObject(threadObject, Executive, KernelMode, FALSE,
-					NULL);
+			DebugPrint("[KernelMsg] Uninstall: Attempting to reference serverThread handle %p.\n", ServerThreadHandle); 
+			if (NT_SUCCESS(ObReferenceObjectByHandle(ServerThreadHandle, THREAD_ALL_ACCESS, NULL, KernelMode,&threadObject, NULL))) {
+				DebugPrint("[KernelMsg] Uninstall: Reference acquired. Waiting for serverThread to terminate.\n"); 
+				KeWaitForSingleObject(threadObject, Executive, KernelMode, FALSE, NULL);  //serverThread 线程函数已经返回，内核可能还需要一些时间来完成线程对象的清理工作
+				DebugPrint("[KernelMsg] Uninstall: serverThread terminated.\n"); // 
 				ObDereferenceObject(threadObject);
+				DebugPrint("[KernelMsg] Uninstall: Thread object dereferenced.\n"); // 
+			}
+			else {
+				DebugPrint("[KernelMsg] Uninstall: Failed to reference serverThread object! Status: 0x%X\n", STATUS_UNSUCCESSFUL); 
 			}
 			ZwClose(ServerThreadHandle);
+			DebugPrint("[KernelMsg] Uninstall: ServerThreadHandle %p closed.\n", ServerThreadHandle); 
 			ServerThreadHandle = nullptr;
 		}
+		else {
+			DebugPrint("[KernelMsg] Uninstall: ServerThreadHandle is NULL, no thread to wait for.\n"); 
+		}
+
+		DebugPrint("[KernelMsg] Uninstall: Entering critical region for queue cleanup.\n"); 
+		KeEnterCriticalRegion();
 		ExAcquireResourceExclusiveLite(&queueLock, true);
+		DebugPrint("[KernelMsg] Uninstall: queueLock acquired for cleanup.\n"); // 
 
 		if (msgQueue != nullptr) {
+			DebugPrint("[KernelMsg] Uninstall: Clearing message queue. Current length: %zu\n", msgQueueLength); // 
 			while (IsListEmpty(msgQueue) == false) {
 				PLIST_ENTRY entry = RemoveHeadList(msgQueue);
-				_Ring3MsgQueue* node =
-					CONTAINING_RECORD(entry, _Ring3MsgQueue, ListEntry);
+				_Ring3MsgQueue* node = CONTAINING_RECORD(entry, _Ring3MsgQueue, ListEntry);
 				FreeMsg(node);
 			}
-			//woops, we still missing something
+			ExFreePoolWithTag(msgQueue, Tools::poolTag);
+			msgQueue = nullptr; // 设置为nullptr
+			DebugPrint("[KernelMsg] Uninstall: msgQueue freed.\n"); // 
 		}
+		else {
+			DebugPrint("[KernelMsg] Uninstall: msgQueue is NULL, nothing to free.\n"); // 
+		}
+
 		ExReleaseResourceLite(&queueLock);
+		DebugPrint("[KernelMsg] Uninstall: queueLock released after cleanup.\n"); // 
 
 		msgQueueLength = 0;
 		ExDeleteResourceLite(&queueLock);
+		LockInited = false; // 重置标志
+		DebugPrint("[KernelMsg] Uninstall: queueLock deleted.\n"); // 
+		KeLeaveCriticalRegion();
+		DebugPrint("[KernelMsg] Uninstall: Critical region left. Exiting.\n"); // 
 	}
 
 	auto SendCreateProcessEvent(_MsgCreateProcess* Msg, size_t MsgSize) -> bool {

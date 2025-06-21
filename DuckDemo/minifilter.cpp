@@ -296,39 +296,84 @@ namespace Minifilter {
 
 	//服务断开时通知回调函数
 	auto DisconnectNotifyCallback(PVOID ConnectionCookie) -> void {
+		DebugPrint("[Minifilter] DisconnectNotifyCallback: Client disconnected. ConnectionCookie: %p\n", ConnectionCookie); // 
 		ExAcquireResourceExclusiveLite(&ClientLock, true);
-		DebugPrint("a client was disconnect \n");
-		FltCloseClientPort(filterHandle, &ClientHandle);
-		ClientHandle = NULL;
+		DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientLock acquired.\n"); // 
+
+		if (ClientHandle != NULL) {
+			DebugPrint("[Minifilter] DisconnectNotifyCallback: Closing ClientHandle %p.\n", ClientHandle); // 
+			FltCloseClientPort(filterHandle, &ClientHandle);
+			ClientHandle = NULL; // 确保置为 NULL
+			DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientHandle closed and set to NULL.\n"); // 
+		}
+		else {
+			DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientHandle already NULL.\n"); // 
+		}
 		ExReleaseResourceLite(&ClientLock);
+		DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientLock released. Exiting.\n"); // 
 	}
 
 	
 
 
 	auto UnloadMinifilter() {
+		DebugPrint("[Minifilter] UnloadMinifilter: Entering.\n"); // 
+
+		// 先关闭服务端端口
+		if (CommPortHandle) {
+			DebugPrint("[Minifilter] UnloadMinifilter: Closing CommPortHandle %p.\n", CommPortHandle); // 
+			FltCloseCommunicationPort(CommPortHandle);
+			CommPortHandle = NULL;
+			DebugPrint("[Minifilter] UnloadMinifilter: CommPortHandle closed.\n"); // 
+		}
+		else {
+			DebugPrint("[Minifilter] UnloadMinifilter: CommPortHandle is NULL, nothing to close.\n"); // 
+		}
+
+		// 客户端句柄的清理 (不在这里调用 FltCloseClientPort，由 DisconnectNotifyCallback 处理)
+		if (ClientHandle != NULL) {
+			DebugPrint("[Minifilter] UnloadMinifilter: ClientHandle %p is not NULL. Setting to NULL.\n", ClientHandle); // 
+			ClientHandle = NULL; // 只是清除句柄变量，避免悬挂指针
+		}
+		else {
+			DebugPrint("[Minifilter] UnloadMinifilter: ClientHandle already NULL.\n"); // 
+		}
+
+		// 注销过滤器
 		if (filterHandle) {
-			if(ClientHandle){
-				FltCloseClientPort(filterHandle, &ClientHandle);  //关闭客户端的端口
-				ClientHandle = NULL; 
-			}
+			DebugPrint("[Minifilter] UnloadMinifilter: Unregistering filterHandle %p.\n", filterHandle); // 
 			FltUnregisterFilter(filterHandle);
 			filterHandle = NULL;
+			DebugPrint("[Minifilter] UnloadMinifilter: Filter unregistered.\n"); // 
 		}
-		if (CommPortHandle) {
-			FltCloseCommunicationPort(CommPortHandle);  //关闭服务端的端口
-			CommPortHandle = NULL;
+		else {
+			DebugPrint("[Minifilter] UnloadMinifilter: filterHandle is NULL, nothing to unregister.\n"); // 
 		}
+
+		// 最后删除 ClientLock
 		if (LockInited) {
+			DebugPrint("[Minifilter] UnloadMinifilter: Attempting to delete ClientLock.\n"); // 
+			// 在删除前，获取并立即释放锁，确保没有其他线程持有
+			ExAcquireResourceExclusiveLite(&ClientLock, true);
+			ExReleaseResourceLite(&ClientLock);
 			ExDeleteResourceLite(&ClientLock);
+			LockInited = false; // 重置标志
+			DebugPrint("[Minifilter] UnloadMinifilter: ClientLock deleted.\n"); // 
 		}
+		else {
+			DebugPrint("[Minifilter] UnloadMinifilter: ClientLock not initialized, nothing to delete.\n"); // 
+		}
+		DebugPrint("[Minifilter] UnloadMinifilter: Exiting.\n"); // 
 	}
 	
 
 
 	auto MiniFilterUnload(FLT_FILTER_UNLOAD_FLAGS Flags) -> NTSTATUS {
-		UnloadMinifilter();
-		KernelMsg::Uninstall();
+		DebugPrint("[Minifilter] MiniFilterUnload: Entering. Flags: 0x%X\n", Flags); // 
+		KernelMsg::Uninstall(); // 先清理 KernelMsg 模块
+		DebugPrint("[Minifilter] MiniFilterUnload: KernelMsg::Uninstall completed.\n"); // 
+		UnloadMinifilter();     // 再清理 Minifilter 模块自身的资源
+		DebugPrint("[Minifilter] MiniFilterUnload: UnloadMinifilter completed.\n"); // 
 		return STATUS_SUCCESS;
 	}
 	
@@ -342,8 +387,7 @@ namespace Minifilter {
 		RtlInitUnicodeString(&RegistryPathUnicode, RegistryPath);
 		InitializeMiniFilterRegedit(&RegistryPathUnicode, Altitude);
 
-		auto ntStatus =
-			FltRegisterFilter(Driver, &filterRegistration, &filterHandle);
+		auto ntStatus =FltRegisterFilter(Driver, &filterRegistration, &filterHandle);
 		do {
 			if (NT_SUCCESS(ntStatus) == false) {
 				break;
@@ -369,6 +413,7 @@ namespace Minifilter {
 				break;
 			}
 			ntStatus = FltStartFiltering(filterHandle);
+
 
 		} while (false);
 		if (NT_SUCCESS(ntStatus) == false) {

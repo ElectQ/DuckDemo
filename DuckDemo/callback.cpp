@@ -50,10 +50,31 @@ namespace Callback {
 		}
 	}
 
+	//auto Uninstall()->void {
+	//	if (CreateProcessisInstalled == TRUE) {
+	//		PsSetCreateProcessNotifyRoutineEx(CreateProcessNotifyRoutineEx, TRUE);
+	//	}
+	//	
+	//}
+
 	auto Uninstall()->void {
+		DebugPrint("[Callback] Uninstall: Entering.\n"); // 
 		if (CreateProcessisInstalled == TRUE) {
-			PsSetCreateProcessNotifyRoutineEx(CreateProcessNotifyRoutineEx, TRUE);
+			DebugPrint("[Callback] Uninstall: Attempting to unregister CreateProcessNotifyRoutineEx.\n"); // 
+			NTSTATUS status = PsSetCreateProcessNotifyRoutineEx(CreateProcessNotifyRoutineEx, TRUE);
+			if (NT_SUCCESS(status)) {
+				CreateProcessisInstalled = FALSE; // 成功注销后重置标志
+				DebugPrint("[Callback] Uninstall: CreateProcessNotifyRoutineEx unregistered successfully.\n"); // 
+			}
+			else {
+				DebugPrint("[Callback] Uninstall: Failed to unregister CreateProcessNotifyRoutineEx! Status: 0x%X\n", status); // 
+				// 如果注销失败，这可能意味着你的回调仍然被调用，是潜在的崩溃点
+			}
 		}
+		else {
+			DebugPrint("[Callback] Uninstall: CreateProcessNotifyRoutineEx not installed or already uninstalled.\n"); // 
+		}
+		DebugPrint("[Callback] Uninstall: Exiting.\n"); // 
 	}
 
 	auto Init(PDRIVER_OBJECT driver) ->bool {
