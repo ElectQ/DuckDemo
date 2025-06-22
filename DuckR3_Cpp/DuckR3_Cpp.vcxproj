@@ -78,9 +78,13 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>D:\Dev\Driver\cef_binary_137.0.17+gf354b0e+chromium-137.0.7151.104_windows64_minimal;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Dev\Driver\cef_binary_137.0.17+gf354b0e+chromium-137.0.7151.104_windows64_minimal\Debug;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>D:\Dev\Driver\cef_binary_137.0.17+gf354b0e+chromium-137.0.7151.104_windows64_minimal;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Dev\Driver\cef_binary_137.0.17+gf354b0e+chromium-137.0.7151.104_windows64_minimal\Release;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -116,10 +120,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>Default</LanguageStandard_C>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
@@ -131,6 +137,10 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <Optimization>Disabled</Optimization>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -140,7 +150,22 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="browser_client.cpp" />
+    <ClCompile Include="cef_global.cpp" />
     <ClCompile Include="DuckR3_Cpp.cpp" />
+    <ClCompile Include="kernel_msg.cpp" />
+    <ClCompile Include="main_app.cpp" />
+    <ClCompile Include="tools.cpp" />
+    <ClCompile Include="v8_api_handle.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="browser_client.h" />
+    <ClInclude Include="cef_global.h" />
+    <ClInclude Include="head.h" />
+    <ClInclude Include="kernel_msg.h" />
+    <ClInclude Include="main_app.h" />
+    <ClInclude Include="tools.h" />
+    <ClInclude Include="v8_api_handle.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -13,10 +13,57 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="头文件\cef">
+      <UniqueIdentifier>{54d7bdc9-645c-4cac-af1c-9c6c69751627}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\cef">
+      <UniqueIdentifier>{127a753b-006b-4222-a815-6968d60be79d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DuckR3_Cpp.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="kernel_msg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="tools.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="browser_client.cpp">
+      <Filter>源文件\cef</Filter>
+    </ClCompile>
+    <ClCompile Include="cef_global.cpp">
+      <Filter>源文件\cef</Filter>
+    </ClCompile>
+    <ClCompile Include="main_app.cpp">
+      <Filter>源文件\cef</Filter>
+    </ClCompile>
+    <ClCompile Include="v8_api_handle.cpp">
+      <Filter>源文件\cef</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="head.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="kernel_msg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="tools.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="browser_client.h">
+      <Filter>头文件\cef</Filter>
+    </ClInclude>
+    <ClInclude Include="cef_global.h">
+      <Filter>头文件\cef</Filter>
+    </ClInclude>
+    <ClInclude Include="main_app.h">
+      <Filter>头文件\cef</Filter>
+    </ClInclude>
+    <ClInclude Include="v8_api_handle.h">
+      <Filter>头文件\cef</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

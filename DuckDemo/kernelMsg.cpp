@@ -242,6 +242,9 @@ namespace KernelMsg {
 		if (Minifilter::filterHandle == nullptr || Minifilter::ClientHandle == nullptr || isDriverUninstall) {
 			return blockProcess;
 		}
+		//if (wcsstr(Msg->path, L"DuckDemo") != nullptr) {
+		//	return blockProcess;
+		//}
 
 		_Msg_CreateProcess_R3Reply theReply = {};
 		uint32_t replySize = 0;

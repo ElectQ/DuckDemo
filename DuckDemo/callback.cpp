@@ -4,8 +4,7 @@
 
 namespace Callback {
 	bool CreateProcessisInstalled = FALSE;
-	auto CreateProcessNotifyRoutineEx(PEPROCESS Process, HANDLE ProcessId,
-		PPS_CREATE_NOTIFY_INFO CreateInfo) -> void {
+	auto CreateProcessNotifyRoutineEx(PEPROCESS Process, HANDLE ProcessId,PPS_CREATE_NOTIFY_INFO CreateInfo) -> void {
 		bool isCreate = CreateInfo != nullptr;
 		if (isCreate) {
 			DebugPrint("process create, pid: %d file: %wZ \n", ProcessId,
@@ -50,13 +49,6 @@ namespace Callback {
 		}
 	}
 
-	//auto Uninstall()->void {
-	//	if (CreateProcessisInstalled == TRUE) {
-	//		PsSetCreateProcessNotifyRoutineEx(CreateProcessNotifyRoutineEx, TRUE);
-	//	}
-	//	
-	//}
-
 	auto Uninstall()->void {
 		DebugPrint("[Callback] Uninstall: Entering.\n"); // 
 		if (CreateProcessisInstalled == TRUE) {
@@ -78,7 +70,7 @@ namespace Callback {
 	}
 
 	auto Init(PDRIVER_OBJECT driver) ->bool {
-		auto Ntsatus = PsSetCreateProcessNotifyRoutineEx(CreateProcessNotifyRoutineEx, FALSE);
+		auto Ntsatus = PsSetCreateProcessNotifyRoutineEx(CreateProcessNotifyRoutineEx, FALSE);  //注册内核回调
 		do {
 			if (NT_SUCCESS(Ntsatus) == FALSE) {
 				NT_ASSERT(FALSE);
