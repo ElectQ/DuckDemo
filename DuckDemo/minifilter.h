@@ -4,7 +4,7 @@
 
 namespace Minifilter {
 	extern PFLT_PORT ClientHandle;   //这些都需要被外部链接，所以
-	extern ERESOURCE ClientLock;   
+	extern KSPIN_LOCK ClientSpinLock;   
 	extern PFLT_FILTER filterHandle;  //Minifiler句柄
 
 	enum class _FileAccessType {

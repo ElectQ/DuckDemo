@@ -5,7 +5,7 @@
 
 namespace KerneMsg {
 	extern std::map<int, std::tuple<void*, bool*>> eventIdMap;
-	extern int currentIndex;  // 之前的变量也一起修复
+	extern int currentIndex;  // 之前锟侥憋拷锟斤拷也一锟斤拷锟睫革拷
 	
 	extern std::mutex theLock;
 
@@ -14,5 +14,8 @@ namespace KerneMsg {
 	auto KernMsgRoute(void* ctx) -> void;
 	auto WaitKernelMsg() -> void;
 	auto Init() -> bool;
+	
+	// 娴嬭瘯鏂规硶
+	auto TestMultiplePopups(int count = 3) -> void;
 }
 

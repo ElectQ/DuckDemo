@@ -4,7 +4,7 @@
 #include "browser_client.h"
 #include "cef_global.h"
 
-//Ç§Íò²»ÒªĞŞ¸ÄÕâ¸öÃû×Ö,·ñÔò¾ÍÔËĞĞ²»ÁËÁË
+//Ç§ï¿½ï¿½Òªï¿½Ş¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ²ï¿½ï¿½ï¿½ï¿½ï¿½
 
 class SuperDuckAntiVirusCefApp :
 	public CefApp,
@@ -13,6 +13,9 @@ class SuperDuckAntiVirusCefApp :
 public:
 	virtual CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
 	virtual CefRefPtr<CefRenderProcessHandler> GetRenderProcessHandler() override { return this; }
+	
+	// æ·»åŠ å‘½ä»¤è¡Œå¼€å…³å¤„ç†
+	virtual void OnBeforeCommandLineProcessing(const CefString& process_type, CefRefPtr<CefCommandLine> command_line) override;
 	SuperDuckAntiVirusCefApp() {}
 
 	virtual void OnContextCreated(
@@ -35,7 +38,7 @@ private:
 
 class CreatePopUpWindowTask : public CefTask {
 public:
-	// ¹¹Ôìº¯Êı£¬ÓÃÓÚ½ÓÊÕËùÓĞĞèÒªµÄ²ÎÊı
+	// ï¿½ï¿½ï¿½ìº¯ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Ä²ï¿½ï¿½ï¿½
 	CreatePopUpWindowTask(CefRefPtr<SuperDuckAntiVirusCefApp> app,
 		int eventId,
 		std::wstring malwarePath,
@@ -43,23 +46,23 @@ public:
 		std::wstring description)
 		: app_(app),
 		eventId_(eventId),
-		malwarePath_(std::move(malwarePath)), // Ê¹ÓÃ std::move ÓÅ»¯×Ö·û´®¿½±´
+		malwarePath_(std::move(malwarePath)), // Ê¹ï¿½ï¿½ std::move ï¿½Å»ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 		malwareName_(std::move(malwareName)),
 		description_(std::move(description)) {}
-	// ÕâÊÇCefTask½Ó¿ÚÒªÇóÊµÏÖµÄÎ¨Ò»·½·¨£¬Ëü½«ÔÚÄ¿±êÏß³ÌÉÏÖ´ĞĞ
+	// ï¿½ï¿½ï¿½ï¿½CefTaskï¿½Ó¿ï¿½Òªï¿½ï¿½Êµï¿½Öµï¿½Î¨Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½Ö´ï¿½ï¿½
 	void Execute() override {
-		// ÔÚUIÏß³ÌÉÏµ÷ÓÃÊµ¼ÊµÄ´°¿Ú´´½¨º¯Êı
+		// ï¿½ï¿½UIï¿½ß³ï¿½ï¿½Ïµï¿½ï¿½ï¿½Êµï¿½ÊµÄ´ï¿½ï¿½Ú´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 		if (app_) {
 			app_->CreatePopUpWindow(eventId_, malwarePath_, malwareName_, description_);
 		}
 	}
 private:
-	CefRefPtr<SuperDuckAntiVirusCefApp> app_; // ³ÖÓĞ CefApp ÊµÀıµÄÒıÓÃ
+	CefRefPtr<SuperDuckAntiVirusCefApp> app_; // ï¿½ï¿½ï¿½ï¿½ CefApp Êµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	int eventId_;
 	std::wstring malwarePath_;
 	std::wstring malwareName_;
 	std::wstring description_;
-	// CEF µÄÒıÓÃ¼ÆÊıºê£¬±ØĞëÌí¼Óµ½ËùÓĞ CefRefPtr ¹ÜÀíµÄ¶ÔÏóÖĞ
-	// Õâ½«×Ô¶¯´¦Àí¶ÔÏóµÄÉúÃüÖÜÆÚ¹ÜÀí
+	// CEF ï¿½ï¿½ï¿½ï¿½ï¿½Ã¼ï¿½ï¿½ï¿½ï¿½ê£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Óµï¿½ï¿½ï¿½ï¿½ï¿½ CefRefPtr ï¿½ï¿½ï¿½ï¿½ï¿½Ä¶ï¿½ï¿½ï¿½ï¿½ï¿½
+	// ï¿½â½«ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¹ï¿½ï¿½ï¿½
 	IMPLEMENT_REFCOUNTING(CreatePopUpWindowTask);
 };

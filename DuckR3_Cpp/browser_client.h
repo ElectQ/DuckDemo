@@ -18,6 +18,7 @@ public:
 
 	// CefClient methods:
 	CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
+	CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
 
 	bool OnQuery(
 		CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
@@ -30,14 +31,19 @@ public:
 		CefRefPtr<CefProcessMessage> message) override;
 
 	// CefLifeSpanHandler methods:
-	// ä¯ÀÀÆ÷´´½¨ºóµ÷ÓÃ
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	virtual void OnAfterCreated(CefRefPtr<CefBrowser> browser) override;
 
-	// µ±ä¯ÀÀÆ÷¼´½«¹Ø±ÕÊ±µ÷ÓÃ
-	// ·µ»Øfalse±íÊ¾CEF×Ô¼º´¦Àí¹Ø±Õ£¬·µ»Øtrue±íÊ¾ËÞÖ÷³ÌÐò´¦Àí¹Ø±Õ
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø±ï¿½Ê±ï¿½ï¿½ï¿½ï¿½
+	// ï¿½ï¿½ï¿½ï¿½falseï¿½ï¿½Ê¾CEFï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø±Õ£ï¿½ï¿½ï¿½ï¿½ï¿½trueï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø±ï¿½
 	virtual bool DoClose(CefRefPtr<CefBrowser> browser) override;
-	// ÔÚä¯ÀÀÆ÷´°¿Ú±»Ïú»ÙÇ°µ÷ÓÃ
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú±ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½
 	virtual void OnBeforeClose(CefRefPtr<CefBrowser> browser) override;
+
+	// CefLoadHandler methods:
+	virtual void OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, TransitionType transition_type) override;
+	virtual void OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int httpStatusCode) override;
+	virtual void OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, ErrorCode errorCode, const CefString& errorText, const CefString& failedUrl) override;
 
 private:
 	CefRefPtr<CefMessageRouterBrowserSide> message_router_;

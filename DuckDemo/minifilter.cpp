@@ -4,7 +4,7 @@ namespace Minifilter {
 
 	PFLT_PORT CommPortHandle;
 	PFLT_PORT ClientHandle;
-	ERESOURCE ClientLock;
+	KSPIN_LOCK ClientSpinLock;
 	PFLT_FILTER filterHandle;
 	bool LockInited = false;
 
@@ -287,30 +287,37 @@ namespace Minifilter {
 		IN PVOID ConnectionContext,
 		IN ULONG SizeOfContext,
 		OUT PVOID* ConnectionPortCookie) -> NTSTATUS {
+		KIRQL currentIrql = KeGetCurrentIrql();
+		DebugPrint("[Minifilter] ConnectNotifyCallback: Current IRQL = %d\n", currentIrql);
+		
 		ClientHandle = ClientPort;
-		ExAcquireResourceExclusiveLite(&ClientLock, true); //上锁
+		KIRQL oldIrql;
+		KeAcquireSpinLock(&ClientSpinLock, &oldIrql);
 		DebugPrint("a client was connect \n");
-		ExReleaseResourceLite(&ClientLock);  //解锁
+		KeReleaseSpinLock(&ClientSpinLock, oldIrql);
 		return STATUS_SUCCESS;
 	}
 
 	//服务断开时通知回调函数
 	auto DisconnectNotifyCallback(PVOID ConnectionCookie) -> void {
-		DebugPrint("[Minifilter] DisconnectNotifyCallback: Client disconnected. ConnectionCookie: %p\n", ConnectionCookie); // 
-		ExAcquireResourceExclusiveLite(&ClientLock, true);
-		DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientLock acquired.\n"); // 
+		KIRQL currentIrql = KeGetCurrentIrql();
+		DebugPrint("[Minifilter] DisconnectNotifyCallback: Client disconnected. ConnectionCookie: %p, Current IRQL = %d\n", ConnectionCookie, currentIrql); // 
+		
+		KIRQL oldIrql;
+		KeAcquireSpinLock(&ClientSpinLock, &oldIrql);
+		DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientSpinLock acquired.\n"); // 
 
 		if (ClientHandle != NULL) {
-			DebugPrint("[Minifilter] DisconnectNotifyCallback: Closing ClientHandle %p.\n", ClientHandle); // 
-			FltCloseClientPort(filterHandle, &ClientHandle);
-			ClientHandle = NULL; // 确保置为 NULL
-			DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientHandle closed and set to NULL.\n"); // 
+			DebugPrint("[Minifilter] DisconnectNotifyCallback: Marking ClientHandle %p for cleanup.\n", ClientHandle); // 
+			// 不能在高IRQL调用FltCloseClientPort，只清空句柄
+			ClientHandle = NULL; // 先置空，防止其他地方使用
+			DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientHandle set to NULL (port cleanup deferred).\n"); // 
 		}
 		else {
 			DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientHandle already NULL.\n"); // 
 		}
-		ExReleaseResourceLite(&ClientLock);
-		DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientLock released. Exiting.\n"); // 
+		KeReleaseSpinLock(&ClientSpinLock, oldIrql);
+		DebugPrint("[Minifilter] DisconnectNotifyCallback: ClientSpinLock released. Exiting.\n"); // 
 	}
 
 	
@@ -352,13 +359,10 @@ namespace Minifilter {
 
 		// 最后删除 ClientLock
 		if (LockInited) {
-			DebugPrint("[Minifilter] UnloadMinifilter: Attempting to delete ClientLock.\n"); // 
-			// 在删除前，获取并立即释放锁，确保没有其他线程持有
-			ExAcquireResourceExclusiveLite(&ClientLock, true);
-			ExReleaseResourceLite(&ClientLock);
-			ExDeleteResourceLite(&ClientLock);
+			DebugPrint("[Minifilter] UnloadMinifilter: Attempting to delete ClientSpinLock.\n"); // 
+			// 自旋锁不需要删除操作，只需重置标志
 			LockInited = false; // 重置标志
-			DebugPrint("[Minifilter] UnloadMinifilter: ClientLock deleted.\n"); // 
+			DebugPrint("[Minifilter] UnloadMinifilter: ClientSpinLock cleanup completed.\n"); // 
 		}
 		else {
 			DebugPrint("[Minifilter] UnloadMinifilter: ClientLock not initialized, nothing to delete.\n"); // 
@@ -392,10 +396,7 @@ namespace Minifilter {
 			if (NT_SUCCESS(ntStatus) == false) {
 				break;
 			}
-			ntStatus = ExInitializeResourceLite(&ClientLock);
-			if (NT_SUCCESS(ntStatus) == false) {
-				return false;
-			}
+			KeInitializeSpinLock(&ClientSpinLock);
 			LockInited = true;
 			ntStatus = FltBuildDefaultSecurityDescriptor(&securityDescriptor,
 				FLT_PORT_ALL_ACCESS);

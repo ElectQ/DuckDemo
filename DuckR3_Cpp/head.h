@@ -7,6 +7,10 @@
 #include <vector>
 #include <share.h>
 #include <mutex>
+#include <thread>
+#include <map>
+#include <string>
+#include <algorithm>  // 添加这个头文件支持std::min和std::max
 
 #pragma comment(lib, "fltLib.lib")
 #pragma comment(lib, "libcef.lib")

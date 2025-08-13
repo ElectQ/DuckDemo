@@ -19,6 +19,7 @@ struct _MsgCreateProcess {
 	wchar_t commandLine[1];
 };
 struct _Msg_CreateProcess_R3Reply {
+	FILTER_REPLY_HEADER replyHeader;
 	bool isNeedBlock;
 };
 struct _MsgFileRw {

@@ -15,6 +15,7 @@ namespace KernelMsg {
 		PAGED_CODE();
 		bool successInsert = false;
 		_Ring3MsgQueue* Item = nullptr;
+		// DebugPrint("[KernelMsg] PushMsgToQueue: msgSize=%lu, queueLength=%lu\n", (unsigned long)msgSize, (unsigned long)msgQueueLength);
 		KeEnterCriticalRegion(); //进入临界区 禁用APC调用资源保证锁的稳定性
 		ExAcquireResourceExclusiveLite(&queueLock, true);  //获取当前进程资源
 
@@ -23,11 +24,11 @@ namespace KernelMsg {
 				break;
 			}
 			if (msgQueueLength > MaxMsgQueueLength) {
-				DebugPrint("[%s] Drop Msg Because Buffer full\n", __func__);
+				DebugPrint("[KernelMsg] Drop Msg Because Buffer full, queueLength=%lu\n", (unsigned long)msgQueueLength);
 				break;
 			}
 			if (msgSize > MaxMessageLength) {
-				DebugPrint("[%s] Drop Msg Because Buffer Msg size was overflow %d \n",__func__, msgSize);
+				DebugPrint("[%s] Drop Msg Because Buffer Msg size was overflow %lu \n",__func__, (unsigned long)msgSize);
 				break;
 			}
 
@@ -49,8 +50,10 @@ namespace KernelMsg {
 			Item->bufferSize = msgSize;
 			InsertTailList(msgQueue, &Item->ListEntry);
 			msgQueueLength++;
+			// DebugPrint("[KernelMsg] Message added to queue successfully, new queueLength=%lu\n", (unsigned long)msgQueueLength);
 		} while (false);
 		if (successInsert == false) {
+			DebugPrint("[KernelMsg] Failed to insert message to queue\n");
 			if (Item != nullptr) {
 				if (Item->buffer != nullptr) {
 					ExFreePoolWithTag(Item->buffer,Tools::poolTag);
@@ -98,6 +101,7 @@ namespace KernelMsg {
 	auto serverThread(void* ctx) -> void {
 		HANDLE handle = reinterpret_cast<HANDLE>(ctx);
 		_Ring3MsgQueue* msgBuffer = nullptr;
+		DebugPrint("[KernelMsg] Server thread started\n");
 		do {
 			msgBuffer = nullptr;
 
@@ -109,6 +113,7 @@ namespace KernelMsg {
 				break;
 			}
 			if (Minifilter::ClientHandle == nullptr) {
+				DebugPrint("[KernelMsg] Waiting for client connection...\n");
 				Sleep(1000 * 10);
 				continue;
 			}
@@ -124,10 +129,12 @@ namespace KernelMsg {
 				break; // 立即退出
 			}
 
-			FltSendMessage(Minifilter::filterHandle,
+			// DebugPrint("[KernelMsg] Sending message to R3 client, bufferSize=%lu\n", (unsigned long)msgBuffer->bufferSize);
+			auto sendResult = FltSendMessage(Minifilter::filterHandle,
 				&Minifilter::ClientHandle,
 				msgBuffer->buffer,
 				msgBuffer->bufferSize, NULL, NULL, &KernelMsg::MessageTimeout);
+			// DebugPrint("[KernelMsg] FltSendMessage result: 0x%X\n", sendResult);
 			FreeMsg(msgBuffer);
 			Sleep(100);
 
@@ -141,8 +148,8 @@ namespace KernelMsg {
 
 	HANDLE ServerThreadHandle;
 	auto Init() -> bool {
-		// 30秒超时
-		MessageTimeout.QuadPart = Int32x32To64(30, -10 * 1000 * 1000);
+		// 45秒超时 - 稍长于R3端的40秒，确保有足够时间响应
+		MessageTimeout.QuadPart = Int32x32To64(45, -10 * 1000 * 1000);
 		auto ntstatus = ExInitializeResourceLite(&queueLock);
 		if (NT_SUCCESS(ntstatus) == false) {
 			return false;
@@ -172,7 +179,7 @@ namespace KernelMsg {
 	auto Uninstall() -> void {
 		DebugPrint("[KernelMsg] Uninstall: Entering.\n"); // 
 		isDriverUninstall = true; // 放置在最前面，尽快通知其他线程
-		DebugPrint("[KernelMsg] Uninstall: isDriverUninstall set to true. CleanUpQueue Length: %d\n", msgQueueLength); // 改进
+		DebugPrint("[KernelMsg] Uninstall: isDriverUninstall set to true. CleanUpQueue Length: %lu\n", (unsigned long)msgQueueLength); // 改进
 
 		if (LockInited == false) {
 			DebugPrint("[KernelMsg] Uninstall: Lock not initialized, exiting.\n"); // 
@@ -206,7 +213,7 @@ namespace KernelMsg {
 		DebugPrint("[KernelMsg] Uninstall: queueLock acquired for cleanup.\n"); // 
 
 		if (msgQueue != nullptr) {
-			DebugPrint("[KernelMsg] Uninstall: Clearing message queue. Current length: %zu\n", msgQueueLength); // 
+			DebugPrint("[KernelMsg] Uninstall: Clearing message queue. Current length: %lu\n", (unsigned long)msgQueueLength); // 
 			while (IsListEmpty(msgQueue) == false) {
 				PLIST_ENTRY entry = RemoveHeadList(msgQueue);
 				_Ring3MsgQueue* node = CONTAINING_RECORD(entry, _Ring3MsgQueue, ListEntry);
@@ -233,28 +240,83 @@ namespace KernelMsg {
 
 	auto SendCreateProcessEvent(_MsgCreateProcess* Msg, size_t MsgSize) -> bool {
 		bool blockProcess = false;
+		// DebugPrint("[KernelMsg] SendCreateProcessEvent: MsgSize=%lu, MaxMessageLength=%d\n", (unsigned long)MsgSize, MaxMessageLength);
 		if (MsgSize > MaxMessageLength) {
-			// bugged, fix me
-			__debugbreak();
+			DebugPrint("[KernelMsg] Message size %lu exceeds maximum %d, allowing process\n", (unsigned long)MsgSize, MaxMessageLength);
 			return blockProcess;
 		}
 		// 这里并不安全.客户端应该做计数引用
 		if (Minifilter::filterHandle == nullptr || Minifilter::ClientHandle == nullptr || isDriverUninstall) {
+			DebugPrint("[KernelMsg] Cannot send message: filterHandle=%p, ClientHandle=%p, isDriverUninstall=%s\n", 
+				Minifilter::filterHandle, Minifilter::ClientHandle, isDriverUninstall ? "true" : "false");
 			return blockProcess;
 		}
-		//if (wcsstr(Msg->path, L"DuckDemo") != nullptr) {
-		//	return blockProcess;
-		//}
+	
 
 		_Msg_CreateProcess_R3Reply theReply = {};
-		uint32_t replySize = 0;
+		uint32_t replySize = sizeof(_Msg_CreateProcess_R3Reply);
 
+		DebugPrint("[KernelMsg] *** BEFORE SEND: Expected replySize = %d ***\n", replySize);
+		DebugPrint("[KernelMsg] *** FILTER_REPLY_HEADER size = %d ***\n", (int)sizeof(FILTER_REPLY_HEADER));
+		DebugPrint("[KernelMsg] *** bool size = %d ***\n", (int)sizeof(bool));
+		DebugPrint("[KernelMsg] *** Total struct size = %d ***\n", (int)sizeof(_Msg_CreateProcess_R3Reply));
+
+		DebugPrint("[KernelMsg] Sending synchronous message to R3 and waiting for reply...\n");
 		auto ntStatus =
-			FltSendMessage(Minifilter::filterHandle, &Minifilter::ClientHandle, Msg,
+			FltSendMessage(Minifilter::filterHandle, &Minifilter::ClientHandle, Msg,  //阻塞等待
 				MsgSize, &theReply, (PULONG)&replySize, &MessageTimeout);
-		if (NT_SUCCESS(ntStatus)) {
-			blockProcess = theReply.isNeedBlock;
+		DebugPrint("[KernelMsg] FltSendMessage returned: 0x%X, replySize=%d\n", ntStatus, replySize);
+		if (NT_SUCCESS(ntStatus) && ntStatus != STATUS_TIMEOUT) {
+			DebugPrint("[KernelMsg] *** REPLY STRUCTURE ANALYSIS ***\n");
+			DebugPrint("[KernelMsg] *** theReply.replyHeader.MessageId = 0x%llX ***\n", (unsigned long long)theReply.replyHeader.MessageId);
+			DebugPrint("[KernelMsg] *** Raw memory at isNeedBlock offset: ***\n");
+			
+			// 直接访问isNeedBlock字段的内存
+			unsigned char* replyBytes = (unsigned char*)&theReply;
+			for (int i = 0; i < sizeof(_Msg_CreateProcess_R3Reply); i++) {
+				DebugPrint("[KernelMsg] Byte[%d] = 0x%02X\n", i, replyBytes[i]);
+			}
+			
+			// 【修复】由于只接收到8字节，而FILTER_REPLY_HEADER可能有16字节
+			// 实际的isNeedBlock数据在接收到的数据的最后位置
+			bool actualDecision = false;
+			if (replySize >= sizeof(FILTER_REPLY_HEADER) + sizeof(bool)) {
+				// 正常情况：完整接收
+				actualDecision = theReply.isNeedBlock;
+				DebugPrint("[KernelMsg] *** Using theReply.isNeedBlock (normal case) ***\n");
+			} else {
+				// 特殊情况：只接收到部分数据，从Byte[0]读取（这是R3实际发送的决策）
+				actualDecision = (replyBytes[0] != 0);
+				DebugPrint("[KernelMsg] *** Using Byte[0] as decision (replySize=%d < expected) ***\n", replySize);
+			}
+			
+			blockProcess = actualDecision;
+			DebugPrint("=== [DRIVER DECISION RECEIVED] ===\n");
+			DebugPrint("[KernelMsg] *** R3 DECISION: %s PROCESS ***\n", 
+				blockProcess ? "BLOCK" : "ALLOW");
+			DebugPrint("[KernelMsg] *** Actual decision from Byte[0]: %s ***\n", 
+				(replyBytes[0] != 0) ? "TRUE" : "FALSE");
+			DebugPrint("[KernelMsg] *** theReply.isNeedBlock: %s ***\n", 
+				theReply.isNeedBlock ? "TRUE" : "FALSE");
+			DebugPrint("=== [DRIVER WILL %s PROCESS] ===\n", 
+				blockProcess ? "BLOCK" : "ALLOW");
 		}
+		else {
+			if (ntStatus == STATUS_TIMEOUT || ntStatus == 0x102) {
+				DebugPrint("=== [DRIVER TIMEOUT] ===\n");
+				DebugPrint("[KernelMsg] *** R3 response timeout (0x%X) ***\n", ntStatus);
+				DebugPrint("=== [DRIVER WILL ALLOW PROCESS BY DEFAULT] ===\n");
+			} else {
+				DebugPrint("=== [DRIVER COMMUNICATION FAILED] ===\n");
+				DebugPrint("[KernelMsg] *** Failed to get reply from R3 (0x%X) ***\n", ntStatus);
+				DebugPrint("=== [DRIVER WILL ALLOW PROCESS BY DEFAULT] ===\n");
+			}
+		}
+
+		DebugPrint("=== [FINAL DRIVER DECISION] ===\n");
+		DebugPrint("[KernelMsg] *** RETURNING TO CALLBACK: %s ***\n", 
+			blockProcess ? "BLOCK PROCESS" : "ALLOW PROCESS");
+		DebugPrint("=== [END DRIVER DECISION] ===\n");
 
 		return blockProcess;
 	}

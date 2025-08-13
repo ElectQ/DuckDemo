@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tasklist:*)"
+    ],
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "D:\\Dev\\Driver\\DuckDemo\\DuckR3_Cpp",
+      "D:\\mnt\\d\\Dev\\Driver\\DuckDemo"
+    ]
+  }
+}
